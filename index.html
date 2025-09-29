@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Moderation Bot Status</title>
+<style>
+  body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: #2f3136;
+    color: #fff;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    margin: 0;
+  }
+
+  .status-panel {
+    background-color: #36393f;
+    border-radius: 15px;
+    padding: 30px;
+    width: 450px;
+    box-shadow: 0 0 20px rgba(0,0,0,0.5);
+    text-align: center;
+  }
+
+  h1 {
+    font-size: 1.8rem;
+    margin-bottom: 20px;
+    color: #7289da;
+  }
+
+  .status {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin: 15px 0;
+    padding: 10px 20px;
+    border-radius: 10px;
+    background-color: #2f3136;
+    transition: all 0.3s ease;
+  }
+
+  .status span {
+    display: flex;
+    align-items: center;
+  }
+
+  .dot {
+    height: 14px;
+    width: 14px;
+    border-radius: 50%;
+    margin-right: 10px;
+    transition: all 0.5s ease;
+    box-shadow: 0 0 5px rgba(0,0,0,0.5);
+  }
+
+  .green { background-color: #43b581; box-shadow: 0 0 10px #43b581; }
+  .yellow { background-color: #faa61a; box-shadow: 0 0 10px #faa61a; }
+  .red { background-color: #f04747; box-shadow: 0 0 10px #f04747; }
+  .gray { background-color: #747f8d; box-shadow: 0 0 10px #747f8d; }
+
+  .footer {
+    margin-top: 20px;
+    font-size: 0.85rem;
+    color: #b9bbbe;
+  }
+</style>
+</head>
+<body>
+
+<div class="status-panel">
+  <h1>Moderation Bot Status</h1>
+
+  <div class="status">
+    <span><div class="dot" id="repoDot"></div>GitHub Repository</span>
+    <span id="repoStatus">Checking...</span>
+  </div>
+
+  <div class="status">
+    <span><div class="dot" id="commitDot"></div>Last Commit</span>
+    <span id="commitStatus">Checking...</span>
+  </div>
+
+  <div class="status">
+    <span><div class="dot" id="codeDot"></div>Code Health</span>
+    <span id="codeStatus">Checking...</span>
+  </div>
+
+  <div class="status">
+    <span><div class="dot" id="botDot"></div>Bot Status</span>
+    <span id="botStatus">Checking...</span>
+  </div>
+
+  <div class="footer">
+    Updated in real-time using GitHub API
+  </div>
+</div>
+
+<script>
+  const repoOwner = "2k937";
+  const repoName = "moderation-bot-open-source-";
+
+  function setDotStatus(dotId, status) {
+    const dot = document.getElementById(dotId);
+    dot.classList.remove("green","yellow","red","gray");
+    dot.classList.add(status);
+  }
+
+  async function fetchRepoStatus() {
+    try {
+      const commitsRes = await fetch(`https://api.github.com/repos/${repoOwner}/${repoName}/commits`);
+      if (!commitsRes.ok) throw new Error("Repo not found");
+      const commits = await commitsRes.json();
+
+      // GitHub repo online
+      document.getElementById("repoStatus").innerText = "Online ✅";
+      setDotStatus("repoDot","green");
+
+      // Last commit
+      const lastCommitDate = new Date(commits[0].commit.author.date);
+      const now = new Date();
+      const diffHours = (now - lastCommitDate)/1000/3600;
+      document.getElementById("commitStatus").innerText = lastCommitDate.toLocaleString();
+      if(diffHours < 24) setDotStatus("commitDot","green");
+      else if(diffHours < 72) setDotStatus("commitDot","yellow");
+      else setDotStatus("commitDot","red");
+
+      // Code Health check
+      const filesRes = await fetch(`https://api.github.com/repos/${repoOwner}/${repoName}/contents/`);
+      const files = await filesRes.json();
+      let broken = false;
+      for (const file of files) {
+        if (file.name.endsWith(".js")) {
+          const contentRes = await fetch(file.download_url);
+          const content = await contentRes.text();
+          try { new Function(content); } 
+          catch(e) { broken = true; break; }
+        }
+      }
+      document.getElementById("codeStatus").innerText = broken ? "Broken ⚠️" : "Healthy ✅";
+      setDotStatus("codeDot", broken ? "red" : "green");
+
+      // Bot status placeholder
+      document.getElementById("botStatus").innerText = "Online ✅";
+      setDotStatus("botDot","green");
+
+    } catch (err) {
+      console.error(err);
+      document.getElementById("repoStatus").innerText = "Offline ❌";
+      document.getElementById("commitStatus").innerText = "-";
+      document.getElementById("codeStatus").innerText = "Broken ⚠️";
+      document.getElementById("botStatus").innerText = "Offline ❌";
+
+      setDotStatus("repoDot","red");
+      setDotStatus("commitDot","gray");
+      setDotStatus("codeDot","red");
+      setDotStatus("botDot","red");
+    }
+  }
+
+  fetchRepoStatus();
+  setInterval(fetchRepoStatus, 60000); // Refresh every 60 seconds
+</script>
+
+</body>
+</html>
